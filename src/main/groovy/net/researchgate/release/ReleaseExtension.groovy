@@ -10,11 +10,15 @@
 
 package net.researchgate.release
 
+import org.gradle.api.Action
 import org.gradle.api.Project
 import org.gradle.util.ConfigureUtil
 
 import java.util.regex.Matcher
 import java.util.regex.Pattern
+
+import net.researchgate.release.GitAdapter.GitConfig
+import net.researchgate.release.SvnAdapter.SvnConfig
 
 class ReleaseExtension {
 
@@ -60,12 +64,23 @@ class ReleaseExtension {
         /(\d+)([^\d]*$)/: { Matcher m, Project p -> m.replaceAll("${(m[0][1] as int) + 1}${m[0][2]}") }
     ]
 
+    SvnConfig svn = new SvnConfig()
+    GitConfig git = new GitConfig()
+
+    def git(Action<GitConfig> action) {
+        action.execute(git)
+    }
+
+    def svn(Action<SvnConfig> action) {
+        action.execute(svn)
+    }
+
     List<Class<? extends BaseScmAdapter>> scmAdapters = [
         GitAdapter,
         SvnAdapter,
         HgAdapter,
-        BzrAdapter
-    ];
+        BzrAdapter,
+    ]
 
     private Project project
     private Map<String, Object> attributes
@@ -87,14 +102,7 @@ class ReleaseExtension {
 
             return metaClass."$name" = value
         }
-        BaseScmAdapter adapter = getAdapterForName(name)
-        Object result = adapter?.createNewConfig()
-
-        if (!adapter || !result) {
-            throw new MissingPropertyException(name, this.class)
-        }
-
-        metaClass."$name" = result
+        throw new MissingPropertyException(name, this.class)
     }
 
     def propertyMissing(String name, value) {
@@ -104,45 +112,25 @@ class ReleaseExtension {
 
             return metaClass."$name" = value
         }
-        BaseScmAdapter adapter = getAdapterForName(name)
-
-        if (!adapter) {
-            throw new MissingPropertyException(name, this.class)
-        }
-        metaClass."$name" = value
     }
 
     def methodMissing(String name, args) {
+        // adds a method for SCM adapter. Just in case if there is another call for the same adapter from another place
         metaClass."$name" = { Closure varClosure ->
             return ConfigureUtil.configure(varClosure, this."$name")
         }
 
+        def scmConfig
         try {
-            return ConfigureUtil.configure(args[0] as Closure, this."$name")
+            // get or create ScmConfig (field accessor delegates to propertyMissing(String) method if needed)
+            scmConfig = this."$name"
         } catch (MissingPropertyException ignored) {
             throw new MissingMethodException(name, this.class, args)
         }
+        return ConfigureUtil.configure(args[0] as Closure, scmConfig)
     }
 
     private boolean isDeprecatedOption(String name) {
         name == 'includeProjectNameInTag' || name == 'tagPrefix'
-    }
-
-    private BaseScmAdapter getAdapterForName(String name) {
-        BaseScmAdapter adapter = null
-        scmAdapters.find {
-            assert BaseScmAdapter.isAssignableFrom(it)
-
-            Pattern pattern = Pattern.compile("^${name}", Pattern.CASE_INSENSITIVE);
-            if (!pattern.matcher(it.simpleName).find()) {
-                return false
-            }
-
-            adapter = it.getConstructor(Project.class, Map.class).newInstance(project, attributes)
-
-            return true
-        }
-
-        adapter
     }
 }

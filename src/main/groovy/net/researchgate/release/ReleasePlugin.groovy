@@ -333,26 +333,14 @@ class ReleasePlugin extends PluginHelper implements Plugin<Project> {
      * @param directory the directory to start from
      */
     protected BaseScmAdapter findScmAdapter() {
-        BaseScmAdapter adapter
         File projectPath = project.projectDir.canonicalFile
 
-        extension.scmAdapters.find {
-            assert BaseScmAdapter.isAssignableFrom(it)
-
-            BaseScmAdapter instance = it.getConstructor(Project.class, Map.class).newInstance(project, attributes)
-            if (instance.isSupported(projectPath)) {
-                adapter = instance
-                return true
-            }
-
-            return false
-        }
-
-        if (adapter == null) {
-            throw new GradleException(
-                "No supported Adapter could be found. Are [${ projectPath }] or its parents are valid scm directories?")
-        }
-
-        adapter
+        return extension.scmAdapters.stream()
+                .peek { assert BaseScmAdapter.isAssignableFrom(it) }
+                .map { it.getConstructor(Project.class, Map.class).newInstance(project, attributes) as BaseScmAdapter }
+                .filter {it.isSupported(projectPath)}
+                .findFirst()
+                .orElseThrow { new GradleException(
+                        "No supported Adapter could be found. Are [${ projectPath }] or its parents are valid scm directories?") }
     }
 }

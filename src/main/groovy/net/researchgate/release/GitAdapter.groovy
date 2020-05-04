@@ -55,11 +55,6 @@ class GitAdapter extends BaseScmAdapter {
     }
 
     @Override
-    Object createNewConfig() {
-        return new GitConfig()
-    }
-
-    @Override
     boolean isSupported(File directory) {
         if (!directory.list().grep('.git')) {
             return directory.parentFile? isSupported(directory.parentFile) : false

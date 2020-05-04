@@ -84,7 +84,7 @@ artifactory {
 
 afterReleaseBuild.dependsOn bintrayUpload
 
-wrapper.gradleVersion = '1.12'
+wrapper.gradleVersion = '4.10'
 
 updateVersion.doFirst {
     def file = file('README.md')
